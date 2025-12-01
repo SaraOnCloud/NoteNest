@@ -15,7 +15,7 @@ from sqlalchemy import or_
 
 app = Flask(__name__)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymsql://notenestuser:notenestpassword@localhost:3306/notenest"
+app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://notenestuser:notenestpassword@localhost:3306/notenest"
 
 app.config["JWT_SECRET_KEY"] = "secret-key"
 
@@ -35,7 +35,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key = True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     notes = db.relationship(
@@ -94,6 +94,65 @@ def register():
     if not username or not email or not password:
         return error_response("Enter required information",400)
     
-    existing = User.query.filter(or_
+    existing = User.query.filter(
+        or_(User.username == username, User.email == email)).first()
+    if existing:
+        return error_response("User already registered",400)
+    
+    password_hash = generate_password_hash(password)
+    user = User(username=username, email=email, password_hash=password_hash)
+    db.session.add(user)
+    db.session.commit()
+    # El usuario está creado
 
+    access_token = create_access_token(identity=user.id)
 
+    return (
+        jsonify({
+        "access_token": access_token,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "created_at": user.created_at.isoformat()
+        },
+        }),
+    201
+    )
+
+@app.post("/api/login")
+def login():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    #     if not username and not email or not password:
+    if not username and not email or not password:
+        return error_response("Enter required information",400)
+
+    user = User.query.filter(
+        or_(User.username == username, User.email == email)).first()
+    if user is None or check_password_hash(user.password_hash, password) is False:
+        return error_response("User not registered or password is incorrect",400)
+
+    access_token = create_access_token(identity=user.id)
+
+    return (
+        jsonify({
+        "access_token": access_token,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "created_at": user.created_at.isoformat()
+        },
+        }),
+    201
+    )
+    
+    
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, host="0.0.0.0", port=5001)
