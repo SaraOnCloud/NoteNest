@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MYSQL_ROOT_PASSWORD: "notenestroot"
+      MYSQL_DATABASE: "notenest"
+      MYSQL_USER: "notenestuser"
+      MYSQL_PASSWORD: "notenestpassword"
+    ports:
+      - 3306:3306
+    volumes:
+      - db_data:/var/lib/mysql
+    
+  phpmyadmin:
+    image: arm64v8/phpmyadmin:latest
+    depends_on:
+      - db
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306 
+      PMA_USER: "notenestuser"
+      PMA_PASSWORD: "notenestpassword"
+    ports: 
+      - 8080:80
+  
+
+volumes:
+  db_data:
+    
